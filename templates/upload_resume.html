@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+{% block title %}
+Upload resume
+{% endblock %}
+
+{% block main %}
+<div class="flex min-h-[80vh] mt-8 items-center justify-center bg-gray-50">
+  <div class="bg-white shadow-lg rounded-2xl p-8 w-full max-w-lg">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">
+      Upload or Paste Your Resume
+    </h2>
+
+    <form action="/upload_resume" method="POST" enctype="multipart/form-data" class="flex flex-col gap-5">
+      <div>
+        <label for="resume_file" class="block text-gray-700 font-medium mb-2">Upload PDF or Text File:</label>
+        <input type="file" name="resume_file" accept=".pdf,.txt" class="block w-full text-gray-700 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:outline-none p-2"/>
+      </div>
+
+      <div>
+        <label for="resume_text" class="block text-gray-700 font-medium mb-2">Or Paste Resume Text:</label>
+        <textarea name="resume_text" rows="10" cols="60" placeholder="Paste your resume here..."
+        class="w-full border border-gray-300 rounded-lg p-3 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"></textarea>
+      </div>
+
+      <button type="submit" class="bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Submit Resume</button>
+
+{% endblock %}

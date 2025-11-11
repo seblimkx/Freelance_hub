@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>{% block title %}{% endblock %}</title>
+</head>
+
+<body class="m-0 font-sans flex flex-col justify-center bg-[#f4f4f9]">
+    <main class="flex-1 flex justify-center items-center">
+    {% block main %}{% endblock %}
+    </main>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>{% block title %}{% endblock %}</title>
+</head>
+
+<body class="m-0 font-sans flex flex-col justify-center bg-[#f4f4f9]">
+    <header class="w-full bg-white shadow-md p-4 flex justify-between items-center">
+    <h1 class="text-xl font-bold text-gray-800">Freelance Hub</h1>
+
+    <p>Welcome, {{ profile.username }}!</p>
+    <nav class="flex items-center gap-4">
+      <a href="/buyer" class="text-gray-600 hover:text-blue-600 font-medium">Buyer</a>
+      <a href="/seller" class="text-gray-600 hover:text-blue-600 font-medium">Seller</a>
+      <a href="/logout" class="text-gray-600 hover:text-blue-600 font-medium">Logout</a>
+    </nav>
+    </header>
+
+    <main class="flex-1 flex justify-center items-center">
+    {% block main %}{% endblock %}
+    </main>
+</body>
+</html>

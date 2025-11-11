@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Buyer Main Page
+{% endblock %}
+
+{% block main %}
+
+<div class="w-screen h-screen overflow-y-auto bg-[#f0f4f8]">
+
+  <form method="GET" action="/search" class="mb-6 my-4 max-w-md mx-auto flex">
+    <input type="text" name="query" placeholder="Search..."
+      class="flex-grow p-3 border border-gray-300 rounded-l-full bg-white
+             focus:outline-none transition duration-300 ease-in-out
+             focus:scale-105 focus:shadow-lg">
+    <button type="submit"
+      class="p-3 px-5 bg-blue-500 text-white rounded-r-full 
+             hover:bg-blue-600 transition duration-300 ease-in-out
+             hover:scale-105 hover:shadow-lg">
+      Search
+    </button>
+  </form>
+
+{% if items %}
+<div class="flex justify-center my-4">
+  <button onclick="openTagModal()"
+    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+    Choose Interests
+  </button>
+</div>
+{% for item in items %} 
+
+<a href="/service/{{ item.id }}" class="block"> 
+  <div class="p-4 mx-4 mb-4 bg-[#e8eaed] rounded-lg hover:bg-[#d9dde1] cursor-pointer transition"> 
+    <h3 class="text-lg font-semibold">{{ item.title }}</h3> 
+    <p class="text-gray-700 truncate">{{ item.description }}</p> 
+    <p class="text-gray-700 font-medium">RM {{ item.price }}</p> 
+  </div> 
+</a>
+{% endfor %}
+
+{% else %} <div class="text-center text-gray-600 mt-10"> <p class="text-lg">No services available at the moment.</p> 
+<p class="text-sm">You can create your own services or try searching at another time.</p> </div>
+{% endif %}
+
+</div>
+
+<div id="tagModal" class="fixed inset-0 bg-gray-800 bg-opacity-60 flex justify-center items-center hidden">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+    <h2 class="text-xl font-semibold mb-4 text-center">Select Your Interests</h2>
+
+<form id="tagForm" method="POST" action="/set_preferences" class="flex flex-wrap gap-2 justify-center">
+  {% for tag in tags %}
+  <button type="button"
+    class="tag-btn px-3 py-2 border rounded-full text-gray-700 hover:bg-blue-100 transition"
+    data-tag="{{ tag }}">
+    {{ tag }}
+  </button>
+  {% endfor %}
+
+  <input type="hidden" name="selected_tags" id="selectedTagsInput">
+  <button type="submit"
+    class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition w-full">
+    Save Preferences
+  </button>
+</form>
+
+  </div>
+</div>
+
+<script>
+const modal = document.getElementById("tagModal");
+const selectedTags = [];
+const selectedTagsInput = document.getElementById("selectedTagsInput");
+
+function openTagModal() {
+  modal.classList.remove("hidden");
+}
+
+window.onclick = function (event) {
+  if (event.target === modal) modal.classList.add("hidden");
+};
+
+document.querySelectorAll(".tag-btn").forEach(button => {
+  button.addEventListener("click", () => {
+    const tag = button.dataset.tag;
+    const index = selectedTags.indexOf(tag);
+
+    if (index > -1) {
+      selectedTags.splice(index, 1);
+      button.classList.remove("bg-blue-600", "text-white");
+      button.classList.add("text-gray-700");
+    } else {
+      selectedTags.push(tag);
+      button.classList.add("bg-blue-600", "text-white");
+      button.classList.remove("text-gray-700");
+    }
+
+    selectedTagsInput.value = JSON.stringify(selectedTags);
+  });
+});
+</script>
+
+{% endblock %}
