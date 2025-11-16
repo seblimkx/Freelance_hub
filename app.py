@@ -347,27 +347,35 @@ def delete_service():
         user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))
         return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)  
  
-@app.route("/service/<int:service_id>")
-def service_detail(service_id):
-    db = get_db_connection()
-    cursor = db.cursor()
-    service = cursor.execute("SELECT * FROM services WHERE id = ?", (service_id,)).fetchone()
-    
-    if not service:
-        return "Service not found", 404
+@app.route("/service/<int:service_id>") 
+def service_detail(service_id): 
+    db = get_db_connection() 
+    cursor = db.cursor() 
+    service = cursor.execute("SELECT * FROM services WHERE id = ?", (service_id,)).fetchone() 
+    if not service: return "Service not found", 404 
 
-    service_data = {
-        "id": service["id"],
-        "title": service["title"],
-        "description": service["description"],
-        "price": service["price"]
-    }
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))
+    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"] } 
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
     
     return render_template("service_detail.html", service=service_data, profile = user_profile)
 
-
 ALLOWED_EXTENSIONS = {"pdf", "txt"}
+
+@app.route("/chat/<int:service_id>") 
+def chat(service_id):
+    db = get_db_connection() 
+    cursor = db.cursor() 
+    service = cursor.execute("""
+        SELECT services.*, users.username 
+        FROM services
+        JOIN users ON services.user_id = users.id
+        WHERE services.id = ?
+    """, (service_id,)).fetchone()
+    if not service: return "Service not found", 404 
+
+    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"], "seller": service["username"] } 
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
+    return render_template("chat.html", service=service_data, profile = user_profile)
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS

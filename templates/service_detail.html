@@ -19,6 +19,13 @@ Service Details
     <p class="text-gray-700 text-lg leading-relaxed">{{ service.description }}</p>
     <p class="text-2xl font-semibold text-blue-700 mt-2">RM {{ service.price }}</p>
 
+  <a href="/chat/{{ service.id }}"
+    class="inline-block px-6 py-3 bg-blue-600 text-white font-semibold 
+            rounded-full shadow-md hover:bg-blue-700 hover:shadow-lg 
+            transition transform hover:-translate-y-0.5">
+      Chat with Seller
+  </a>
+
   <form action="{{ url_for('create_checkout_session', service_id=service.id) }}" method="POST">
     <button type="submit" class="w-full bg-green-600 text-white px-6 py-3 rounded mt-6 hover:bg-green-700 transition font-semibold text-lg">
       Proceed to Payment

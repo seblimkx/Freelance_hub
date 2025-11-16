@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+
+{% block title %} Chat with Seller {% endblock %}
+
+{% block main %}
+<div class="w-screen h-screen flex flex-col bg-gray-100">
+
+  <!-- Header -->
+  <div class="bg-blue-600 text-white p-4 flex items-center justify-between">
+    <h2 class="text-lg font-semibold">Chat with {{ service.seller }}</h2>
+    <a href="/service/{{ service.id }}" class="text-sm underline">Back to Service</a>
+  </div>
+
+  <!-- Messages container -->
+  <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-2">
+    {% for message in messages %}
+      <div class="flex {% if message.sender == 'buyer' %}justify-end{% else %}justify-start{% endif %}">
+        <div class="max-w-xs px-4 py-2 rounded-lg {% if message.sender == 'buyer' %}bg-blue-600 text-white{% else %}bg-gray-300 text-gray-800{% endif %}">
+          {{ message.content }}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Input box -->
+  <form id="chatForm" method="POST" action="/send_message/{{ service_id }}" class="p-4 flex gap-2 bg-white border-t">
+    <input type="text" name="message" placeholder="Type a message..."
+           class="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <button type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition">
+      Send
+    </button>
+  </form>
+
+</div>
+{% endblock %}
+
+<script>
+  // Optional: Auto-scroll to bottom
+  const chatMessages = document.getElementById('chatMessages');
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+</script>
