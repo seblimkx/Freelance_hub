@@ -212,8 +212,10 @@ def buyer():
     db = get_db_connection()
     cursor = db.cursor()
     user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], session["resume"])
-    tasks = cursor.execute("SELECT * FROM services").fetchall()
-    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"]) for row in tasks]
+    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume 
+                            FROM services
+                            JOIN users ON services.user_id = users.id""").fetchall()
+    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"]) for row in services]
     ranked_items = recommend(posts)
 
     cursor.close()
@@ -224,17 +226,49 @@ def buyer():
 def seller():
     db = get_db_connection()
     cursor = db.cursor()
-    rows = cursor.execute("SELECT * FROM users WHERE id = ? ", (session["user_id"],)).fetchall()
 
-    user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"],)).fetchall()
-    user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"]) for row in user_tasks]
+    # Fetch current user's resume
+    user_row = cursor.execute(
+        "SELECT * FROM users WHERE id = ?", 
+        (session["user_id"],)
+    ).fetchone()
 
-    user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], rows[0]["resume"])
-    user_profile.resume = rows[0]["resume"]
-    
-    print(user_profile.resume)
+    # Fetch the seller's services + include resume via JOIN
+    user_tasks = cursor.execute("""
+        SELECT services.id, services.title, services.description, 
+               services.price, users.resume
+        FROM services
+        JOIN users ON services.user_id = users.id
+        WHERE services.user_id = ?
+    """, (session["user_id"], )).fetchall()
 
-    return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)
+    # Build freelance_post list including resume
+    user_posts = [
+        freelance_post(
+            row["title"],
+            row["description"],
+            row["price"],
+            row["id"],
+            row["resume"]
+        )
+        for row in user_tasks
+    ]
+
+    # Build user profile with resume
+    user_profile = Profile(
+        session["username"],
+        session["profile_type"],
+        None,
+        session["user_id"],
+        user_row["resume"]
+    )
+
+    return render_template(
+        "mainpage_seller.html",
+        services=user_posts,
+        profile=user_profile,
+        tags=SERVICE_TAGS
+    )
     
 @app.route("/search", methods=["GET", "POST"])
 def search():
