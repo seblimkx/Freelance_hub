@@ -108,10 +108,10 @@ def register():
         session["resume"] = user_profile.resume
         db.commit()
 
-        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume 
-                                FROM services
+        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
+                                users.username FROM services
                                 JOIN users ON services.user_id = users.id""").fetchall()
-        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"]) for row in services]
+        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
         cursor.close()
         db.close()
 
@@ -160,10 +160,10 @@ def login():
             db.close()
             return render_template("error.html", error="Invalid username or password")
 
-        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume 
-                                FROM services
+        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
+                                users.username FROM services
                                 JOIN users ON services.user_id = users.id""").fetchall()
-        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"]) for row in services]
+        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
 
         session["user_id"] = user["id"]
         session["username"] = name
@@ -212,10 +212,10 @@ def buyer():
     db = get_db_connection()
     cursor = db.cursor()
     user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], session["resume"])
-    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume 
-                            FROM services
+    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
+                            users.username FROM services
                             JOIN users ON services.user_id = users.id""").fetchall()
-    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"]) for row in services]
+    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
     ranked_items = recommend(posts)
 
     cursor.close()
@@ -236,7 +236,7 @@ def seller():
     # Fetch the seller's services + include resume via JOIN
     user_tasks = cursor.execute("""
         SELECT services.id, services.title, services.description, 
-               services.price, users.resume
+               services.price, users.resume, users.username
         FROM services
         JOIN users ON services.user_id = users.id
         WHERE services.user_id = ?
@@ -249,7 +249,8 @@ def seller():
             row["description"],
             row["price"],
             row["id"],
-            row["resume"]
+            row["resume"],
+            row["username"]
         )
         for row in user_tasks
     ]
@@ -275,10 +276,10 @@ def search():
     db = get_db_connection()
     cursor = db.cursor()
     user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"])
-    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume 
-                              FROM services
-                              JOIN users ON services.user_id = users.id""").fetchall()
-    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"]) for row in services]
+    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
+                            users.username FROM services
+                            JOIN users ON services.user_id = users.id""").fetchall()
+    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
     engine = SearchQuery(posts)
     query = request.args.get("query")
 
