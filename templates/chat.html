@@ -7,7 +7,12 @@
 
   <div class="bg-blue-600 text-white p-4 flex items-center justify-between">
     <h2 class="text-lg font-semibold">Chat with {{ service.seller }}</h2>
-    <a href="/service/{{ service.id }}" class="text-sm underline p-4">Back to Service</a>
+    {% if profile_type == "seller" %}
+        <a href="/seller" class="text-sm underline p-4">Back</a>
+    {% else %}
+        <a href="/buyer" class="text-sm underline p-4">Back</a>
+    {% endif %}
+
   </div>
 
 <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3">

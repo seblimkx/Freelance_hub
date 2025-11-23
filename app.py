@@ -227,6 +227,8 @@ def buyer():
 
     cursor.close()
     db.close()
+
+    session["profile_type"] = "buyer"
     return render_template("mainpage_buyer.html", items = ranked_items, profile = user_profile, tags = SERVICE_TAGS)
 
 @app.route("/seller", methods=["GET", "POST"])
@@ -240,6 +242,16 @@ def seller():
         (session["user_id"],)
     ).fetchone()
 
+    # Fetch unread message count for this seller
+    total_unread = cursor.execute("""
+        SELECT COUNT(*)
+        FROM chat_messages
+        JOIN conversations ON chat_messages.conversation_id = conversations.id
+        WHERE conversations.seller_id = ?
+        AND chat_messages.sender_id != ?
+        AND chat_messages.is_read = 0
+    """, (session["user_id"], session["user_id"])).fetchone()[0]
+
     # Fetch the seller's services + include resume via JOIN
     user_tasks = cursor.execute("""
         SELECT services.id, services.title, services.description, 
@@ -247,9 +259,8 @@ def seller():
         FROM services
         JOIN users ON services.user_id = users.id
         WHERE services.user_id = ?
-    """, (session["user_id"], )).fetchall()
+    """, (session["user_id"],)).fetchall()
 
-    # Build freelance_post list including resume
     user_posts = [
         freelance_post(
             row["title"],
@@ -262,7 +273,7 @@ def seller():
         for row in user_tasks
     ]
 
-    # Build user profile with resume
+    session["profile_type"] = "seller"
     user_profile = Profile(
         session["username"],
         session["profile_type"],
@@ -275,8 +286,10 @@ def seller():
         "mainpage_seller.html",
         services=user_posts,
         profile=user_profile,
-        tags=SERVICE_TAGS
+        tags=SERVICE_TAGS,
+        total_unread=total_unread,     
     )
+
     
 @app.route("/search", methods=["GET", "POST"])
 def search():
@@ -447,6 +460,15 @@ def chat_conversation(conversation_id):
     if not conversation:
         return "Conversation not found", 404
 
+    # ⭐ Mark messages as read for this user
+    cursor.execute("""
+        UPDATE chat_messages
+        SET is_read = 1
+        WHERE conversation_id = ?
+        AND sender_id != ?
+    """, (conversation_id, user_id))
+    db.commit()
+
     # Load service (the convo contains service_id)
     service = cursor.execute("""
         SELECT services.*, users.username AS seller_name
@@ -471,7 +493,7 @@ def chat_conversation(conversation_id):
         "price": service["price"],
         "seller": service["seller_name"]
     }
-
+    profile_type = session["profile_type"]
     user_profile = Profile(
         session["username"],
         session["profile_type"],
@@ -484,12 +506,13 @@ def chat_conversation(conversation_id):
                            service=service_data,
                            profile=user_profile,
                            conversation_id=conversation_id,
-                           messages=messages)
+                           messages=messages,
+                           profile_type = profile_type,
+                           )
 
 @app.route("/send_message/<int:conversation_id>", methods=["POST"])
 def send_msg(conversation_id):
     user_id = session.get("user_id")
-
     if user_id is None:
         return "Unauthorized", 403
 
@@ -513,14 +536,29 @@ def send_msg(conversation_id):
         VALUES (?, ?, ?)
     """, (conversation_id, user_id, msg))
 
+    # determine who to notify
+    recipient_id = conv["seller_id"] if user_id == conv["buyer_id"] else conv["buyer_id"]
+
+    # insert notification
+    cursor.execute("""
+        INSERT INTO notifications (user_id, message)
+        VALUES (?, ?)
+    """, (recipient_id, f"New message from {session['username']}"))
+
     db.commit()
 
-    return redirect(f"/chat/{conv['service_id']}")
+    service_id = conv["service_id"]
+    cursor.close()
+    db.close()
+
+    # correct redirect
+    return redirect(f"/chat/{service_id}")
 
 @app.route("/seller/inbox")
 def seller_inbox():
     db = get_db_connection()
     cursor = db.cursor()
+
     seller_id = session.get("user_id")
     if not seller_id:
         return redirect("/login")
@@ -531,7 +569,17 @@ def seller_inbox():
             u.username AS buyer_username,
             s.title AS service_title,
             m.message AS last_message,
-            m.timestamp AS last_timestamp
+            m.timestamp AS last_timestamp,
+
+            -- ⭐ Count unread messages (NOT sent by seller)
+            (
+                SELECT COUNT(*) 
+                FROM chat_messages 
+                WHERE conversation_id = c.id
+                AND sender_id != ?
+                AND is_read = 0
+            ) AS unread_count
+
         FROM conversations c
         JOIN users u ON c.buyer_id = u.id
         JOIN services s ON c.service_id = s.id
@@ -543,11 +591,27 @@ def seller_inbox():
         )
         WHERE c.seller_id = ?
         ORDER BY last_timestamp DESC
-    """, (seller_id,)).fetchall()
+    """, (seller_id, seller_id)).fetchall()
 
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
+    # ⭐ Total unread across all conversations
+    total_unread = sum(c["unread_count"] for c in conversations)
 
-    return render_template("seller_inbox.html", conversations=conversations, profile = user_profile)
+    user_profile = Profile(
+        session["username"],
+        session["profile_type"],
+        None,
+        session["user_id"],
+        session.get("resume", "")
+    )
+
+    # ⭐ Pass total_unread into template
+    return render_template(
+        "seller_inbox.html",
+        conversations=conversations,
+        total_unread=total_unread,
+        profile=user_profile
+    )
+
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS

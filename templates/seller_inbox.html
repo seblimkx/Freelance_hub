@@ -7,22 +7,26 @@
 <h2 class="text-xl font-semibold mb-4">Your Messages</h2>
 
 <div class="space-y-3">
-  {% for convo in conversations %}
-  
-    <a href="/chat/convo/{{ convo.conversation_id }}" class="block bg-white p-4 rounded shadow hover:bg-gray-50">
-      <div class="flex justify-between">
-        <div>
-          <p class="font-semibold">From: {{ convo.buyer_username }}</p>
-          <p class="text-sm text-gray-600">Service: {{ convo.service_title }}</p>
-          <p class="text-gray-700 mt-1">{{ convo.last_message or "No messages yet" }}</p>
-        </div>
-        <span class="text-xs text-gray-500">
-          {{ convo.last_timestamp }}
-        </span>
-      </div>
-    </a>
-  
-  {% endfor %}
+{% for convo in conversations %}
+  {% if convo['conversation_id'] %}
+<a href="/chat/convo/{{ convo['conversation_id'] }}" class="block">
+  <div class="p-4 bg-white mx-4 mb-3 rounded shadow flex justify-between items-center">
+
+    <div>
+      <p class="text-lg font-semibold">{{ convo['buyer_username'] }}</p>
+      <p class="text-gray-600 text-sm">{{ convo['service_title'] }}</p>
+    </div>
+
+    {% if convo['unread_count'] > 0 %}
+    <span class="bg-red-600 text-white text-xs px-2 py-1 rounded-full">
+        {{ convo['unread_count'] }}
+    </span>
+    {% endif %}
+
+  </div>
+</a>
+  {% endif %}
+{% endfor %}
 </div>
 
 {% endblock %}

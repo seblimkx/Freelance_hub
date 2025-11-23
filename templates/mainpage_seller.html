@@ -6,11 +6,20 @@ Seller Main Page
 {% block main %}
 
 <a href="/seller/inbox" class="relative inline-block p-2 rounded-full hover:bg-blue-100 transition" title="Messages">
+    
     <!-- Chat Icon -->
     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.8L3 20l1.29-3.872A7.82 7.82 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
     </svg>
+
+    {% if total_unread > 0 %}
+    <!-- 🔴 Unread Badge -->
+    <span class="absolute -top-1 -right-1 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full shadow">
+        {{ total_unread }}
+    </span>
+    {% endif %}
+    
 </a>
 <div class="container mx-auto mt-10 px-4 flex flex-col gap-6">
 
