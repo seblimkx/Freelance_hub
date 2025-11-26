@@ -108,10 +108,10 @@ def register():
         session["resume"] = user_profile.resume
         db.commit()
 
-        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
-                                users.username FROM services
+        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                                users.resume, users.username FROM services
                                 JOIN users ON services.user_id = users.id""").fetchall()
-        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
+        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in services]
         cursor.close()
         db.close()
 
@@ -160,10 +160,10 @@ def login():
             db.close()
             return render_template("error.html", error="Invalid username or password")
 
-        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
-                                users.username FROM services
+        services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                                users.resume, users.username FROM services
                                 JOIN users ON services.user_id = users.id""").fetchall()
-        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
+        posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in services]
 
         session["user_id"] = user["id"]
         session["username"] = name
@@ -216,14 +216,17 @@ def buyer():
 
     user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], session["resume"])
     services = cursor.execute("""
-        SELECT services.id, services.title, services.description, services.price, 
+        SELECT services.id, services.title, services.description, services.price, services.image_url,
                users.resume, users.username
         FROM services
         JOIN users ON services.user_id = users.id
         WHERE services.user_id != ?
     """, (user_id,)).fetchall()
-    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
+    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in services]
     ranked_items = recommend(posts)
+
+    for post in posts:
+        print(post.title, post.image_url)
 
     cursor.close()
     db.close()
@@ -255,7 +258,7 @@ def seller():
     # Fetch the seller's services + include resume via JOIN
     user_tasks = cursor.execute("""
         SELECT services.id, services.title, services.description, 
-               services.price, users.resume, users.username
+               services.price, services.image_url, users.resume, users.username
         FROM services
         JOIN users ON services.user_id = users.id
         WHERE services.user_id = ?
@@ -268,18 +271,19 @@ def seller():
             row["price"],
             row["id"],
             row["resume"],
-            row["username"]
+            row["username"], 
+            row["image_url"]
         )
         for row in user_tasks
     ]
 
     session["profile_type"] = "seller"
     user_profile = Profile(
-        session["username"],
-        session["profile_type"],
-        None,
-        session["user_id"],
-        user_row["resume"]
+        username=session["username"],
+        profile_type=session["profile_type"],
+        password=None,
+        id=session["user_id"],
+        resume=user_row["resume"]   # <- explicitly as keyword
     )
 
     return render_template(
@@ -296,10 +300,10 @@ def search():
     db = get_db_connection()
     cursor = db.cursor()
     user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"])
-    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, users.resume, 
-                            users.username FROM services
+    services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                            users.resume, users.username FROM services
                             JOIN users ON services.user_id = users.id""").fetchall()
-    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"]) for row in services]
+    posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in services]
     engine = SearchQuery(posts)
     query = request.args.get("query")
 
@@ -327,7 +331,7 @@ def add_service():
         db.commit()
 
         user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"],)).fetchall()
-        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"]) for row in user_tasks]
+        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["image_url"]) for row in user_tasks]
 
         user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))    
 
@@ -346,7 +350,7 @@ def edit_service():
     db.commit()
 
     user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"], )).fetchall()
-    user_posts = [freelance_post(row["title"], row["description"], row["price"],row["id"]) for row in user_tasks]
+    user_posts = [freelance_post(row["title"], row["description"], row["price"],row["id"], row["image_url"]) for row in user_tasks]
 
     user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))    
 
@@ -362,7 +366,7 @@ def delete_service():
         db.commit()
 
         user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"],)).fetchall()
-        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"]) for row in user_tasks]
+        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["image_url"]) for row in user_tasks]
 
         user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))
         return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)  
@@ -379,7 +383,6 @@ def service_detail(service_id):
     
     return render_template("service_detail.html", service=service_data, profile = user_profile)
 
-ALLOWED_EXTENSIONS = {"pdf", "txt"}
 
 @app.route("/chat/<int:service_id>") 
 def chat(service_id):
@@ -435,7 +438,7 @@ def chat(service_id):
         ORDER BY timestamp ASC
     """, (conversation_id,)).fetchall()
 
-    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"], "seller": service["seller_name"] } 
+    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"], "seller": service["seller_name"], "image_url": service["image_url"] or "/static/default image" } 
     user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
     return render_template("chat.html", 
                            service=service_data, 
@@ -460,7 +463,7 @@ def chat_conversation(conversation_id):
     if not conversation:
         return "Conversation not found", 404
 
-    # ⭐ Mark messages as read for this user
+    # Mark messages as read for this user
     cursor.execute("""
         UPDATE chat_messages
         SET is_read = 1
@@ -491,7 +494,8 @@ def chat_conversation(conversation_id):
         "title": service["title"],
         "description": service["description"],
         "price": service["price"],
-        "seller": service["seller_name"]
+        "seller": service["seller_name"],
+        "image_url": service["image_url"] or "/static/default image"
     }
     profile_type = session["profile_type"]
     user_profile = Profile(
@@ -571,7 +575,7 @@ def seller_inbox():
             m.message AS last_message,
             m.timestamp AS last_timestamp,
 
-            -- ⭐ Count unread messages (NOT sent by seller)
+            -- Count unread messages (NOT sent by seller)
             (
                 SELECT COUNT(*) 
                 FROM chat_messages 
@@ -593,7 +597,7 @@ def seller_inbox():
         ORDER BY last_timestamp DESC
     """, (seller_id, seller_id)).fetchall()
 
-    # ⭐ Total unread across all conversations
+    # Total unread across all conversations
     total_unread = sum(c["unread_count"] for c in conversations)
 
     user_profile = Profile(
@@ -604,7 +608,7 @@ def seller_inbox():
         session.get("resume", "")
     )
 
-    # ⭐ Pass total_unread into template
+    # Pass total_unread into template
     return render_template(
         "seller_inbox.html",
         conversations=conversations,
@@ -612,6 +616,7 @@ def seller_inbox():
         profile=user_profile
     )
 
+ALLOWED_EXTENSIONS = {"pdf", "txt"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -653,13 +658,41 @@ def upload_resume():
         db.commit()
 
         session["resume"] = extracted_text
-        print(session["resume"])
-        flash("Your resume has been successfully uploaded!", "success")
-        return redirect("/seller")
+        user_profile = Profile(
+            username=session["username"],
+            profile_type=session["profile_type"],
+            password=None,
+            id=session["user_id"],
+            resume=session["resume"]
+        )
+
+        total_unread = cursor.execute("""
+        SELECT COUNT(*)
+        FROM chat_messages
+        JOIN conversations ON chat_messages.conversation_id = conversations.id
+        WHERE conversations.seller_id = ?
+        AND chat_messages.sender_id != ?
+        AND chat_messages.is_read = 0
+    """, (session["user_id"], session["user_id"])).fetchone()[0]
+
+        return render_template("mainpage_seller.html", profile=user_profile, total_unread = total_unread)
 
     else:
-        user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))
-        return render_template("upload_resume.html", profile = user_profile)
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("SELECT resume FROM users WHERE id = ?", (session["user_id"],))
+        row = cursor.fetchone()
+        resume_value = row["resume"] if row and row["resume"] else ""
+
+        user_profile = Profile(
+            session["username"],
+            session["profile_type"],
+            None,
+            session["user_id"],
+            resume_value
+        )
+
+        return render_template("upload_resume.html", profile=user_profile)
 
 
 
