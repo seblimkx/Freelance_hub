@@ -22,7 +22,6 @@ class SearchQuery:
     def __init__(self, items):
         self.items = items
         self.text = [f"TITLE: {item.title}. DESCRIPTION: {item.description}. SELLER'S RESUME: {item.resume or ''}" for item in items]
-        # Transforms documents into a TF-IDF vector (a vector used to represent words)
 
     def search(self, query):
         query_embedding = model.encode(query, normalize_embeddings=True)

@@ -17,6 +17,9 @@ load_dotenv()
 app = Flask(__name__)
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
+# Generate a secure secret key if not in environment
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24).hex())
+
 app.config["SESSION_PERMANENT"] = True
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["SESSION_TYPE"] = "filesystem"
@@ -28,7 +31,7 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.jinja_env.auto_reload = True
 
 def get_db_connection():
-    conn = sqlite3.connect("project.db", check_same_thread=False)
+    conn = sqlite3.connect("project.db")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -81,11 +84,8 @@ def register():
         if not password_confirm:
             return render_template("error.html", error = "Please confirm password")
         
-        elif password != password_confirm:
-            return render_template("error.html", error="Passwords do not match")
-        
         if password != password_confirm:
-            return render_template("error.html", error = "Password does not match")
+            return render_template("error.html", error="Passwords do not match")
         
         rows = cursor.execute("SELECT username FROM users").fetchall()
         name_list = [row[0] for row in rows]
@@ -100,13 +100,12 @@ def register():
 
         # Create user session
         rows = cursor.execute("SELECT * FROM users WHERE username = ?", (name,)).fetchall()
-        user_profile = Profile(name, "buyer", rows[0]["password"], rows[0]["id"], rows[0]["resume"])
+        user_profile = Profile(name, "buyer", rows[0]["password"], rows[0]["id"], resume=rows[0]["resume"])
         session["user_id"] = rows[0]["id"]
         session["username"] = name
         session["profile_type"] = user_profile.profile_type
         session["password"] = user_profile.password
         session["resume"] = user_profile.resume
-        db.commit()
 
         services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
                                 users.resume, users.username FROM services
@@ -169,13 +168,13 @@ def login():
         session["username"] = name
 
         if user["is_buyer"] == 1:
-            user_profile = Profile(name, "buyer", user["password"], user["id"], user["resume"])
+            user_profile = Profile(name, "buyer", user["password"], user["id"], resume=user["resume"])
             session["profile_type"] = user_profile.profile_type
             session["password"] = user_profile.password
             session["resume"] = user_profile.resume
 
         if user["is_seller"] == 1:
-            user_profile = Profile(name, "seller", user["password"], user["id"], user["resume"])
+            user_profile = Profile(name, "seller", user["password"], user["id"], resume=user["resume"])
             session["profile_type"] = user_profile.profile_type
             session["password"] = user_profile.password
             session["resume"] = user_profile.resume
@@ -195,7 +194,9 @@ def recommend(posts):
     cursor = db.cursor()
     row = cursor.execute("SELECT preferences FROM users WHERE id = ?", (session["user_id"], )).fetchone()
     preferences = json.loads(row["preferences"]) if row and row["preferences"] else []
-    print(preferences)
+    cursor.close()
+    db.close()
+    
     engine = SearchQuery(posts)
 
     if preferences:
@@ -212,9 +213,8 @@ def buyer():
     db = get_db_connection()
     cursor = db.cursor()
     user_id = session["user_id"]
-    print("CURRENT USER:", user_id)
 
-    user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], session["resume"])
+    user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
     services = cursor.execute("""
         SELECT services.id, services.title, services.description, services.price, services.image_url,
                users.resume, users.username
@@ -224,9 +224,6 @@ def buyer():
     """, (user_id,)).fetchall()
     posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in services]
     ranked_items = recommend(posts)
-
-    for post in posts:
-        print(post.title, post.image_url)
 
     cursor.close()
     db.close()
@@ -299,7 +296,6 @@ def seller():
 def search():
     db = get_db_connection()
     cursor = db.cursor()
-    user_profile = Profile(session["username"], session["profile_type"], None, session["user_id"])
     services = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
                             users.resume, users.username FROM services
                             JOIN users ON services.user_id = users.id""").fetchall()
@@ -313,7 +309,9 @@ def search():
     else:
         items_ranked = posts
 
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))    
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
+    cursor.close()
+    db.close()
 
     return render_template("mainpage_buyer.html", items = items_ranked, profile = user_profile, tags = SERVICE_TAGS)
 
@@ -330,10 +328,15 @@ def add_service():
         cursor.execute("INSERT INTO services (title, description, price, user_id, tag) VALUES (?, ?, ?, ?, ?)", (title, description, price, session["user_id"], tag))
         db.commit()
 
-        user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"],)).fetchall()
-        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["image_url"]) for row in user_tasks]
+        user_tasks = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                                    users.resume, users.username FROM services
+                                    JOIN users ON services.user_id = users.id
+                                    WHERE services.user_id = ?""", (session["user_id"],)).fetchall()
+        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in user_tasks]
 
-        user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))    
+        user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
+        cursor.close()
+        db.close()
 
         return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)  
 
@@ -349,10 +352,15 @@ def edit_service():
     cursor.execute("UPDATE services SET title = ?, description = ?, price = ? WHERE user_id = ? AND id = ?", (title, description, price, session["user_id"], service_id))
     db.commit()
 
-    user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"], )).fetchall()
-    user_posts = [freelance_post(row["title"], row["description"], row["price"],row["id"], row["image_url"]) for row in user_tasks]
+    user_tasks = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                                users.resume, users.username FROM services
+                                JOIN users ON services.user_id = users.id
+                                WHERE services.user_id = ?""", (session["user_id"],)).fetchall()
+    user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in user_tasks]
 
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))    
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
+    cursor.close()
+    db.close()
 
     return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)  
 
@@ -365,21 +373,30 @@ def delete_service():
         cursor.execute("DELETE FROM services WHERE id = ? AND user_id = ?", (service_id, session["user_id"]))
         db.commit()
 
-        user_tasks = cursor.execute("SELECT * FROM services WHERE user_id = ?", (session["user_id"],)).fetchall()
-        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["image_url"]) for row in user_tasks]
+        user_tasks = cursor.execute("""SELECT services.id, services.title, services.description, services.price, services.image_url,
+                                    users.resume, users.username FROM services
+                                    JOIN users ON services.user_id = users.id
+                                    WHERE services.user_id = ?""", (session["user_id"],)).fetchall()
+        user_posts = [freelance_post(row["title"], row["description"], row["price"], row["id"], row["resume"], row["username"], row["image_url"]) for row in user_tasks]
 
-        user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", ""))
+        user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
+        cursor.close()
+        db.close()
         return render_template("mainpage_seller.html", services = user_posts, profile = user_profile, tags = SERVICE_TAGS)  
  
 @app.route("/service/<int:service_id>") 
 def service_detail(service_id): 
     db = get_db_connection() 
     cursor = db.cursor() 
-    service = cursor.execute("SELECT * FROM services WHERE id = ?", (service_id,)).fetchone() 
-    if not service: return "Service not found", 404 
+    service = cursor.execute("SELECT * FROM services WHERE id = ?", (service_id,)).fetchone()
+    cursor.close()
+    db.close()
+    
+    if not service:
+        return "Service not found", 404
 
-    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"] } 
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
+    service_data = {"id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"]}
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
     
     return render_template("service_detail.html", service=service_data, profile = user_profile)
 
@@ -437,9 +454,11 @@ def chat(service_id):
         WHERE conversation_id = ?
         ORDER BY timestamp ASC
     """, (conversation_id,)).fetchall()
+    cursor.close()
+    db.close()
 
-    service_data = { "id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"], "seller": service["seller_name"], "image_url": service["image_url"] or "/static/default image" } 
-    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], session.get("resume", "")) 
+    service_data = {"id": service["id"], "title": service["title"], "description": service["description"], "price": service["price"], "seller": service["seller_name"], "image_url": service["image_url"] or "/static/default_image.png"}
+    user_profile = Profile(session["username"],session["profile_type"], None, session["user_id"], resume=session.get("resume", ""))
     return render_template("chat.html", 
                            service=service_data, 
                            profile = user_profile,
@@ -495,7 +514,7 @@ def chat_conversation(conversation_id):
         "description": service["description"],
         "price": service["price"],
         "seller": service["seller_name"],
-        "image_url": service["image_url"] or "/static/default image"
+        "image_url": service["image_url"] or "/static/default_image.png"
     }
     profile_type = session["profile_type"]
     user_profile = Profile(
@@ -503,8 +522,10 @@ def chat_conversation(conversation_id):
         session["profile_type"],
         None,
         session["user_id"],
-        session.get("resume", "")
+        resume=session.get("resume", "")
     )
+    cursor.close()
+    db.close()
 
     return render_template("chat.html",
                            service=service_data,
@@ -702,6 +723,8 @@ def create_checkout_session(service_id):
     db = get_db_connection()
     cursor = db.cursor()
     service = cursor.execute("SELECT * FROM services WHERE id = ?", (service_id,)).fetchone()
+    cursor.close()
+    db.close()
     
     if not service:
         return "Service not found", 404
