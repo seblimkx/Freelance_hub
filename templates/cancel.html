@@ -16,11 +16,11 @@ Payment Cancelled
         <p class="text-gray-600 mb-6">Your payment process was canceled. You have not been charged.</p>
         
         {% if service_id %}
-            <a href="{{ url_for('service_detail', service_id=service_id) }}" class="inline-block bg-gray-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-gray-600 transition duration-200">
+            <a href="{{ url_for('service.service_detail', service_id=service_id) }}" class="inline-block bg-gray-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-gray-600 transition duration-200">
                 Go back and try again
             </a>
         {% else %}
-            <a href="{{ url_for('buyer') }}" class="inline-block bg-gray-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-gray-600 transition duration-200">
+            <a href="{{ url_for('buyer.buyer') }}" class="inline-block bg-gray-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-gray-600 transition duration-200">
                 Go back to homepage
             </a>
         {% endif %}

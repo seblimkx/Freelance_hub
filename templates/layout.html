@@ -11,9 +11,8 @@
 
 <body class="m-0 font-sans flex flex-col justify-center bg-[#f4f4f9]">
     <header class="w-full bg-white shadow-md p-4 flex justify-between items-center">
-    <h1 class="text-xl font-bold text-gray-800">Freelance Hub</h1>
+    <a href="/home" class="text-xl font-bold text-gray-800 hover:text-blue-600 transition-colors duration-200">Freelance Hub</a>
 
-    <p>Welcome, {{ profile.username }}!</p>
     <nav class="flex items-center gap-4">
       <a href="/buyer" class="text-gray-600 hover:text-blue-600 font-medium">Buyer</a>
       <a href="/seller" class="text-gray-600 hover:text-blue-600 font-medium">Seller</a>
@@ -24,5 +23,278 @@
     <main class="flex-1">
     {% block main %}{% endblock %}
     </main>
+
+    <!-- Floating Chat Button -->
+    <button id="chatFloatingBtn" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200 flex items-center justify-center z-50 hover:scale-110">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        </svg>
+    </button>
+
+    <!-- Floating Chat Window -->
+    <div id="chatFloatingWindow" class="fixed bottom-24 right-6 bg-white rounded-2xl shadow-2xl z-50 hidden" style="width: 700px; height: 500px; max-height: calc(100vh - 140px);">
+        <!-- Chat Header -->
+        <div class="bg-blue-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
+            <div id="chatHeaderContent" class="flex items-center gap-2">
+                <button id="backToConversations" class="hidden hover:bg-blue-700 rounded-full p-1 transition-colors mr-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                </button>
+                <h3 class="font-semibold text-lg">Messages</h3>
+            </div>
+            <button id="closeChatBtn" class="hover:bg-blue-700 rounded-full p-1 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Chat Content: Sidebar + Chat Area -->
+        <div class="flex" style="height: calc(100% - 64px);">
+            <!-- Conversations Sidebar -->
+            <div id="conversationsSidebar" class="w-64 border-r border-gray-200 overflow-y-auto">
+                <div class="p-3">
+                    <div id="conversationsList" class="space-y-2">
+                        <!-- Loading state -->
+                        <div class="text-center py-8 text-gray-400 text-sm">
+                            Loading conversations...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div id="chatAreaContainer" class="flex-1 flex flex-col">
+                <div id="chatArea" class="flex-1 flex items-center justify-center text-gray-400">
+                    <div class="text-center">
+                        <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p class="text-sm">Select a conversation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatBtn = document.getElementById('chatFloatingBtn');
+        const chatWindow = document.getElementById('chatFloatingWindow');
+        const closeBtn = document.getElementById('closeChatBtn');
+        const backBtn = document.getElementById('backToConversations');
+        const conversationsSidebar = document.getElementById('conversationsSidebar');
+        const chatAreaContainer = document.getElementById('chatAreaContainer');
+        let currentConversationId = null;
+        let messagePollingInterval = null;
+
+        if (chatBtn && chatWindow && closeBtn) {
+            chatBtn.addEventListener('click', async () => {
+                const isHidden = chatWindow.classList.contains('hidden');
+                chatWindow.classList.toggle('hidden');
+                
+                // Load conversations when opening
+                if (isHidden) {
+                    await loadConversations();
+                    showConversationsList();
+                }
+            });
+
+            closeBtn.addEventListener('click', () => {
+                chatWindow.classList.add('hidden');
+                stopPolling();
+                showConversationsList();
+            });
+
+            backBtn.addEventListener('click', () => {
+                showConversationsList();
+                stopPolling();
+            });
+
+            // Close when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!chatWindow.contains(e.target) && !chatBtn.contains(e.target)) {
+                    chatWindow.classList.add('hidden');
+                    stopPolling();
+                }
+            });
+        }
+
+        function showConversationsList() {
+            conversationsSidebar.classList.remove('hidden');
+            document.getElementById('chatHeaderContent').querySelector('h3').textContent = 'Messages';
+            backBtn.classList.add('hidden');
+            currentConversationId = null;
+            
+            // Clear chat area when going back
+            const chatArea = document.getElementById('chatArea');
+            chatArea.className = 'flex-1 flex items-center justify-center text-gray-400';
+            chatArea.innerHTML = `
+                <div class="text-center">
+                    <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                    </svg>
+                    <p class="text-sm">Select a conversation</p>
+                </div>
+            `;
+            
+            // Remove message input if exists
+            const inputForm = document.getElementById('messageInputForm');
+            if (inputForm) {
+                inputForm.remove();
+            }
+        }
+
+        function showChatInterface(otherParty) {
+            document.getElementById('chatHeaderContent').querySelector('h3').textContent = otherParty;
+            backBtn.classList.remove('hidden');
+        }
+
+        async function loadConversations() {
+            const conversationsList = document.getElementById('conversationsList');
+            conversationsList.innerHTML = '<div class="text-center py-4 text-gray-400 text-sm">Loading...</div>';
+            
+            try {
+                const response = await fetch('/api/conversations');
+                const data = await response.json();
+                
+                if (data.conversations && data.conversations.length > 0) {
+                    conversationsList.innerHTML = data.conversations.map(conv => `
+                        <div class="conversation-item p-3 hover:bg-gray-100 rounded-lg cursor-pointer transition" onclick="loadChat(${conv.conversation_id}, '${conv.other_party}')">
+                            <div class="font-semibold text-sm text-gray-900">${conv.other_party}</div>
+                            <div class="text-xs text-gray-600 truncate">${conv.service_title}</div>
+                            ${conv.unread_count > 0 ? `<span class="inline-block bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full mt-1">${conv.unread_count}</span>` : ''}
+                        </div>
+                    `).join('');
+                } else {
+                    conversationsList.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-gray-400 text-sm mb-3">No conversations yet</p>
+                            <a href="/buyer" class="text-blue-600 text-sm hover:underline">Browse Services</a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                conversationsList.innerHTML = '<div class="text-center py-4 text-red-400 text-sm">Error loading conversations</div>';
+            }
+        }
+
+        async function loadChat(conversationId, otherParty) {
+            currentConversationId = conversationId;
+            showChatInterface(otherParty);
+            
+            const chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = '<div class="text-center py-4 text-gray-400 text-sm">Loading messages...</div>';
+            
+            try {
+                const response = await fetch(`/api/conversation/${conversationId}/messages`);
+                const data = await response.json();
+                
+                renderMessages(data.messages, data.user_id);
+                
+                // Add message input form
+                const chatContainer = document.getElementById('chatAreaContainer');
+                let inputForm = document.getElementById('messageInputForm');
+                if (!inputForm) {
+                    inputForm = document.createElement('form');
+                    inputForm.id = 'messageInputForm';
+                    inputForm.className = 'p-4 bg-white border-t border-gray-200 flex gap-3';
+                    inputForm.innerHTML = `
+                        <input type="text" id="messageInput" placeholder="Type your message..." 
+                               class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-full focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" required>
+                        <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all font-semibold shadow-md">
+                            Send
+                        </button>
+                    `;
+                    inputForm.onsubmit = async (e) => {
+                        e.preventDefault();
+                        await sendMessage();
+                    };
+                    chatContainer.appendChild(inputForm);
+                }
+                
+                // Start polling for new messages
+                startPolling();
+            } catch (error) {
+                chatArea.innerHTML = '<div class="text-center py-4 text-red-400 text-sm">Error loading messages</div>';
+            }
+        }
+
+        function renderMessages(messages, userId) {
+            const chatArea = document.getElementById('chatArea');
+            chatArea.className = 'flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50';
+            
+            if (messages.length === 0) {
+                chatArea.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">No messages yet. Start the conversation!</div>';
+            } else {
+                chatArea.innerHTML = messages.map(msg => {
+                    const isMe = msg.sender_id === userId;
+                    return `
+                        <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                            <div class="max-w-xs">
+                                ${!isMe ? `<p class="text-xs text-gray-500 mb-1 ml-2">${msg.username}</p>` : ''}
+                                <div class="px-4 py-2 rounded-2xl shadow-md ${
+                                    isMe ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-900 rounded-bl-sm'
+                                }">
+                                    ${msg.message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Auto-scroll to bottom
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !currentConversationId) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('message', message);
+                
+                const response = await fetch(`/api/conversation/${currentConversationId}/send`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    input.value = '';
+                    await refreshMessages();
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+        }
+
+        async function refreshMessages() {
+            if (!currentConversationId) return;
+            
+            try {
+                const response = await fetch(`/api/conversation/${currentConversationId}/messages`);
+                const data = await response.json();
+                renderMessages(data.messages, data.user_id);
+            } catch (error) {
+                console.error('Error refreshing messages:', error);
+            }
+        }
+
+        function startPolling() {
+            stopPolling();
+            messagePollingInterval = setInterval(refreshMessages, 3000); // Poll every 3 seconds
+        }
+
+        function stopPolling() {
+            if (messagePollingInterval) {
+                clearInterval(messagePollingInterval);
+                messagePollingInterval = null;
+            }
+        }
+    </script>
 </body>
 </html>
